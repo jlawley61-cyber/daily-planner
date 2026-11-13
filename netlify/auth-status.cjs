@@ -1,0 +1,1 @@
+const s=require('./_shared.cjs');exports.handler=async event=>{try{const a=await s.access(event);return s.json(200,{connected:!!a,email:a?.user.email||null})}catch(err){return s.json(503,{connected:false,error:'Connection needs attention: '+err.message})}};
