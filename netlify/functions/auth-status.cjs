@@ -15,18 +15,23 @@ exports.handler = async (event) => {
       return s.json(200, { authenticated: false });
     }
 
-    const saved = await s.store().get(s.key(session.email), {
-      type: 'json'
-    });
+    const tokenStore = await s.store();
+
+    const saved = await tokenStore.get(
+      s.key(session.email),
+      { type: 'json' }
+    );
 
     return s.json(200, {
       authenticated: Boolean(saved && saved.refresh)
     });
   } catch (error) {
     console.error('Authentication status check failed:', error);
+
     return s.json(500, {
       authenticated: false,
       error: 'Authentication status check failed'
     });
   }
 };
+
