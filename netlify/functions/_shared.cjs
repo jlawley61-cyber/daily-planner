@@ -44,6 +44,25 @@ async function access(event) {
     grant_type: 'refresh_token'
   });
 
+  // TEMPORARY DIAGNOSTIC — log permission names only.
+  const tokenInfoResponse = await fetch(
+    'https://oauth2.googleapis.com/tokeninfo?access_token=' +
+      encodeURIComponent(tokens.access_token)
+  );
+
+  if (tokenInfoResponse.ok) {
+    const tokenInfo = await tokenInfoResponse.json();
+    console.log(
+      'Google token permissions:',
+      tokenInfo.scope || '(none reported)'
+    );
+  } else {
+    console.log(
+      'Unable to inspect Google token permissions:',
+      tokenInfoResponse.status
+    );
+  }
+
   return {
     user,
     token: tokens.access_token
