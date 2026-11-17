@@ -1,3 +1,4 @@
+
 const s = require('./_shared.cjs');
 
 exports.handler = async (event) => {
@@ -10,34 +11,112 @@ exports.handler = async (event) => {
       });
     }
 
-    const response = await fetch(
-      'https://oauth2.googleapis.com/tokeninfo',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
-          access_token: a.token
-        })
-      }
-    );
+    const from = new Date();
+    from.setMonth(from.getMonth() - 3);
 
-    if (!response.ok) {
-      return s.json(502, {
-        error: 'Unable to inspect Google token permissions',
-        status: response.status
+    const to = new Date();
+    to.setMonth(to.getMonth() + 12);
+
+    async function api(url) {
+      const r = await fetch(url, {
+        headers: {
+          Authorization: 'Bearer ' + a.token
+        }
       });
+
+      if (!r.ok) {
+        const detail = await r.text();
+        console.error('Google Calendar API error:', r.status, detail);
+        throw Error('Google Calendar API error (' + r.status + '). Check Netlify function logs.');
+      }
+
+      return r.json();
     }
 
-    const info = await response.json();
+    let calendars = [];
+    let page;
+
+    do {
+      const url = new URL(
+        'https://www.googleapis.com/calendar/v3/users/me/calendarList'
+      );
+
+      if (page) url.searchParams.set('pageToken', page);
+
+      const d = await api(url);
+      calendars.push(...(d.items || []));
+      page = d.nextPageToken;
+    } while (page);
+
+    let events = [];
+
+    for (const c of calendars.filter(x => x.selected !== false)) {
+      let page;
+
+      do {
+        const url = new URL(
+          'https://www.googleapis.com/calendar/v3/calendars/' +
+          encodeURIComponent(c.id) + '/events'
+        );
+
+        url.searchParams.set('timeMin', from.toISOString());
+        url.searchParams.set('timeMax', to.toISOString());
+        url.searchParams.set('singleEvents', 'true');
+        url.searchParams.set('orderBy', 'startTime');
+        url.searchParams.set('maxResults', '2500');
+
+        if (page) url.searchParams.set('pageToken', page);
+
+        const d = await api(url);
+
+        for (const e of d.items || []) {
+          if (e.status === 'cancelled' || !e.start) continue;
+
+          const raw = e.start.dateTime || e.start.date;
+          if (!raw) continue;
+
+          const date = e.start.date ||
+            new Date(raw).toLocaleDateString('en-CA');
+
+          const start = e.start.dateTime
+            ? new Date(raw).toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+              })
+            : '';
+
+          const end = e.end?.dateTime
+            ? new Date(e.end.dateTime).toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+              })
+            : '';
+
+          events.push({
+            id: c.id + ':' + e.id,
+            title: e.summary || '(Untitled)',
+            date,
+            start,
+            end,
+            location: e.location || '',
+            category: /personal/i.test(c.summary)
+              ? 'personal'
+              : 'business',
+            source: 'google',
+            url: e.htmlLink || ''
+          });
+        }
+
+        page = d.nextPageToken;
+      } while (page);
+    }
 
     return s.json(200, {
-      diagnostic: 'Google Calendar permission check',
-      permissions: info.scope
-        ? info.scope.split(' ')
-        : [],
-      expires_in: info.expires_in
+      events,
+      calendarCount: calendars.length,
+      refreshedAt: new Date().toISOString()
     });
 
   } catch (err) {
