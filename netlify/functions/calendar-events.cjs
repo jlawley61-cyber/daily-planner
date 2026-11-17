@@ -1,4 +1,3 @@
-
 const s = require('./_shared.cjs');
 
 exports.handler = async (event) => {
