@@ -38,6 +38,7 @@ exports.handler = async (event) => {
     const end = String(data.end || '');
     const location = String(data.location || '');
     const details = String(data.details || '');
+    const category = data.category === 'business' ? 'business' : 'personal';
 
     if (
       !title ||
@@ -57,6 +58,9 @@ exports.handler = async (event) => {
       summary: title,
       location,
       description: details,
+      extendedProperties: {
+        private: { plannerCategory: category }
+      },
       start: {
         dateTime: date + 'T' + start + ':00',
         timeZone: timezone

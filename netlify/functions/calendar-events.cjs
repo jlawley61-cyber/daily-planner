@@ -101,9 +101,9 @@ exports.handler = async (event) => {
             start,
             end,
             location: e.location || '',
-            category: /personal/i.test(c.summary)
-              ? 'personal'
-              : 'business',
+            category: e.extendedProperties?.private?.plannerCategory === 'business'
+              ? 'business'
+              : 'personal',
             source: 'google',
             url: e.htmlLink || ''
           });
